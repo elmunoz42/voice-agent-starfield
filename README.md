@@ -11,7 +11,7 @@ Talk to AstroLB-3 hands-free while you play. Ask about Starfield mechanics, get 
 | M0 | ✅ Built | Voice loop (console mode, OpenAI STT/LLM/TTS) |
 | M1 | ✅ Built | Knowledge base (YouTube ingestion, distillation, RAG with LanceDB) |
 | M2 | ✅ Built | Progress journal and spoiler control (SQLite) |
-| M3 | ⏳ Planned | Phone deployment (LiveKit Cloud + Vercel frontend) |
+| M3 | ✅ Built | Phone deployment (LiveKit Cloud + Vercel frontend) |
 | M4 | ⏳ Planned | Playtest scenarios |
 
 ## Project Structure
@@ -73,9 +73,19 @@ voice-agent-starfield/
 - ✅ Four spoiler levels: none, main-quest, faction, endgame
 - ✅ Unit tests for journal functions
 
+**M3 - Phone Deployment**
+- ✅ Next.js 16 frontend with LiveKit integration
+- ✅ Push-to-talk interface (large circular button, touch-optimized)
+- ✅ Passphrase-protected access
+- ✅ PWA manifest for home screen installation
+- ✅ LiveKit Cloud agent deployment support
+- ✅ Vercel frontend hosting configuration
+- ✅ AstroLB-3 branding with Starfield theme
+- ✅ Voice visualizer with agent state indicators
+- ✅ Example commands display
+
 ### Planned
-- ⏳ Phone-optimized frontend with push-to-talk
-- ⏳ LiveKit Cloud deployment
+- ⏳ Playtest scenarios and refinements
 
 ## Quick Start
 
@@ -156,6 +166,40 @@ The `kb.py` CLI manages the Starfield knowledge base pipeline:
 
 The ingestion is idempotent - re-running won't duplicate chunks with unchanged content.
 
+## Phone Deployment (M3)
+
+AstroLB-3 is designed to run on your phone with earbuds while you play Starfield. This keeps the AI companion private and separate from your game.
+
+### Quick Deployment
+
+1. **Deploy agent to LiveKit Cloud**
+   ```bash
+   cd agent
+   lk cloud auth
+   lk agent create
+   ```
+
+2. **Deploy frontend to Vercel**
+   ```bash
+   cd frontend
+   vercel --prod
+   ```
+
+3. **Access from phone**
+   - Open the Vercel URL on your phone
+   - Add to home screen (PWA)
+   - Connect earbuds and talk to AstroLB-3
+
+**For detailed step-by-step instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+
+The deployment guide covers:
+- Installing LiveKit CLI
+- Setting up LiveKit Cloud credentials
+- Deploying the voice agent
+- Configuring Vercel with environment variables
+- Installing as a PWA on iOS and Android
+- Troubleshooting connection and audio issues
+
 ## Roadmap
 
 See the status table above for current progress. Only verified items are checked.
@@ -163,7 +207,7 @@ See the status table above for current progress. Only verified items are checked
 Next steps:
 1. ✅ ~~Build knowledge base ingestion CLI (M1)~~
 2. ✅ ~~Implement progress journal tools (M2)~~
-3. Deploy to phone (M3)
+3. ✅ ~~Deploy to phone (M3)~~
 4. Run playtest scenarios (M4)
 
 ## Why Separate from Game?
