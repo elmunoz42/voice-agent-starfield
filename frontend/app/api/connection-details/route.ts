@@ -34,32 +34,9 @@ async function generateConnectionDetails() {
 
   const token = await at.toJwt();
 
-  // Dispatch agent to room using REST API
-  try {
-    const dispatchUrl = `${LIVEKIT_URL}/twirp/livekit.AgentDispatchService/CreateDispatch`;
-    const dispatchAuth = Buffer.from(`${API_KEY}:${API_SECRET}`).toString('base64');
-
-    const dispatchResponse = await fetch(dispatchUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${dispatchAuth}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        room: roomName,
-        agent_name: 'astrolb3-starfield',
-      }),
-    });
-
-    if (!dispatchResponse.ok) {
-      console.error('Failed to dispatch agent:', await dispatchResponse.text());
-    } else {
-      console.log('Agent dispatched successfully to room:', roomName);
-    }
-  } catch (err) {
-    console.error('Error dispatching agent:', err);
-    // Continue anyway - connection might still work
-  }
+  // Note: Agent dispatch is handled automatically by LiveKit
+  // when using agentName parameter in useSession()
+  console.log('Generated token for room:', roomName);
 
   return NextResponse.json({
     serverUrl: LIVEKIT_URL,
