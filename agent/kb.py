@@ -521,39 +521,48 @@ def _chunk_markdown(content: str, source: str) -> list:
     # First section is metadata/preamble
     metadata = sections[0] if sections else ""
 
-    # Extract spoiler levels from comments
+    spoiler_re = r'<!--\s*spoiler:\s*(\S+)\s*-->'
+    max_chars = 1500
+
     for i, section in enumerate(sections[1:], 1):
         lines = section.split('\n')
         heading = lines[0].strip()
-        text = '\n'.join(lines[1:]).strip()
 
-        # Look for spoiler tag in previous content
-        spoiler_match = re.search(r'<!--\s*spoiler:\s*(\S+)\s*-->', metadata + '\n'.join(sections[:i+1]))
-        spoiler_level = spoiler_match.group(1) if spoiler_match else "none"
+        # A section's spoiler tag sits just above its heading, i.e. it is the
+        # last tag at the end of the previous section. Untagged sections
+        # inherit the most recent tag so spoilers never leak as "none".
+        preceding = re.findall(spoiler_re, '\n'.join(sections[:i]))
+        spoiler_level = preceding[-1] if preceding else "none"
 
-        # Create chunk with metadata
-        full_text = f"## {heading}\n\n{text}"
+        # Strip tags from the body so they aren't embedded
+        text = re.sub(spoiler_re, '', '\n'.join(lines[1:])).strip()
+        if not text:
+            continue
 
-        # If chunk is too large, split it further (simple strategy: by paragraphs)
-        if len(full_text) > 1500:
-            paragraphs = text.split('\n\n')
-            for para in paragraphs:
-                if para.strip():
-                    chunk_text = f"## {heading}\n\n{para}"
-                    chunks.append({
-                        "text": chunk_text,
-                        "source": source,
-                        "heading": heading,
-                        "spoiler_level": spoiler_level,
-                        "content_hash": hashlib.md5(chunk_text.encode()).hexdigest()
-                    })
-        else:
+        # Pack paragraphs into chunks of up to max_chars, keeping the heading
+        # on every chunk for retrieval context
+        parts = []
+        current = ""
+        for para in text.split('\n\n'):
+            para = para.strip()
+            if not para:
+                continue
+            if current and len(current) + len(para) + 2 > max_chars:
+                parts.append(current)
+                current = para
+            else:
+                current = f"{current}\n\n{para}" if current else para
+        if current:
+            parts.append(current)
+
+        for part in parts:
+            chunk_text = f"## {heading}\n\n{part}"
             chunks.append({
-                "text": full_text,
+                "text": chunk_text,
                 "source": source,
                 "heading": heading,
                 "spoiler_level": spoiler_level,
-                "content_hash": hashlib.md5(full_text.encode()).hexdigest()
+                "content_hash": hashlib.md5(chunk_text.encode()).hexdigest()
             })
 
     return chunks

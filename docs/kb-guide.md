@@ -94,6 +94,11 @@ Quest-specific ship information...
 - Add citations and timestamps if missing
 - Commit edited files to git
 
+**Spoiler tag rules** (enforced by `_chunk_markdown()` in `kb.py`):
+- Put `<!-- spoiler: LEVEL -->` on the line directly above each `##` heading.
+- An untagged section inherits the closest tag above it, so plot never leaks as `none`.
+- Keep each `##` section under ~1,500 characters so it embeds as one chunk; longer sections are packed into several chunks by paragraph.
+
 ### 5. Ingest Into LanceDB
 
 ```bash

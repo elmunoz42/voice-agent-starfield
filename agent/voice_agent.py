@@ -140,7 +140,7 @@ When answering questions about Starfield mechanics, quests, locations, or strate
             query_vector = response.data[0].embedding
 
             # Search (get more results than needed for spoiler filtering)
-            results = self._kb_table.search(query_vector).limit(10).to_list()
+            results = self._kb_table.search(query_vector).limit(20).to_list()
 
             # Filter by spoiler level from journal
             allowed_levels = self._journal.get_allowed_spoiler_levels()
