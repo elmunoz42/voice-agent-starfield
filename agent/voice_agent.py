@@ -50,7 +50,7 @@ class AstroLB3Assistant(Agent):
     def __init__(self):
         # Load system prompt
         prompt_path = os.path.join(
-            os.path.dirname(__file__), "../prompts/suit-ai.md"
+            os.path.dirname(__file__), "prompts/suit-ai.md"
         )
         with open(prompt_path, "r") as f:
             system_prompt = f.read()

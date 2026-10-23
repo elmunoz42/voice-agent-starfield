@@ -1,28 +1,5 @@
-# LiveKit Agent Configuration for AstroLB-3
-# https://docs.livekit.io/agents/deployment/
+[project]
+  subdomain = "voice-agent-starfield-t5h0minn"
 
 [agent]
-# Display name for the agent
-name = "astrolb3-starfield"
-
-# Entry point for the agent (Python module)
-entrypoint = "voice_agent.py"
-
-# Minimum number of agent instances to keep running
-min_instances = 0
-
-# Maximum number of agent instances
-max_instances = 3
-
-# Python version
-python_version = "3.11"
-
-# Agent metadata
-[agent.metadata]
-description = "AstroLB-3: Private suit AI companion for Starfield"
-version = "1.0.0"
-
-# Required environment variables (without values - set via CLI)
-# These will be configured via `lk agent update-secrets`
-[agent.env]
-# OPENAI_API_KEY will be set via secrets
+  id = "CA_VMNYvEPZr3FZ"

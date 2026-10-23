@@ -55,9 +55,17 @@ def add_youtube(url: str, output_dir: str):
 
     for video_id in video_ids:
         try:
-            # Try youtube-transcript-api first
+            # Try yt-dlp first (more robust, avoids IP blocking)
             click.echo(f"  Fetching {video_id}...")
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+            if _fetch_with_ytdlp(video_id, output_path):
+                success_count += 1
+                continue
+
+            # Fallback to youtube-transcript-api
+            click.echo(f"  yt-dlp failed, trying youtube-transcript-api...")
+            api = YouTubeTranscriptApi()
+            fetched = api.fetch(video_id, languages=['en'])
+            transcript = fetched.to_list()
 
             # Save transcript
             output_file = output_path / f"{video_id}.json"
@@ -72,15 +80,8 @@ def add_youtube(url: str, output_dir: str):
             click.echo(f"  ✅ Saved transcript to {output_file}")
             success_count += 1
 
-        except (TranscriptsDisabled, NoTranscriptFound) as e:
-            click.echo(f"  ⚠️  Transcript API failed: {e}", err=True)
-            click.echo(f"  Trying yt-dlp fallback...")
-
-            # Fallback to yt-dlp
-            if _fetch_with_ytdlp(video_id, output_path):
-                success_count += 1
-            else:
-                click.echo(f"  ❌ Failed to fetch {video_id}", err=True)
+        except Exception as e:
+            click.echo(f"  ❌ Failed to fetch {video_id}: {e}", err=True)
 
     click.echo(f"\n✅ Fetched {success_count}/{len(video_ids)} transcripts")
 
@@ -388,7 +389,7 @@ def _extract_video_ids(url: str) -> list:
 
 
 def _fetch_with_ytdlp(video_id: str, output_path: Path) -> bool:
-    """Fetch subtitles using yt-dlp as fallback."""
+    """Fetch subtitles using yt-dlp."""
     import yt_dlp
 
     try:
@@ -396,20 +397,66 @@ def _fetch_with_ytdlp(video_id: str, output_path: Path) -> bool:
             'skip_download': True,
             'writesubtitles': True,
             'writeautomaticsub': True,
-            'subtitlesformat': 'json3',
-            'quiet': True,
+            'subtitleslangs': ['en'],
+            'quiet': False,
+            'no_warnings': False,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
-            # Extract subtitles manually from info dict
-            if 'automatic_captions' in info or 'subtitles' in info:
-                # This is a simplified version - full implementation would parse VTT/JSON3
-                click.echo(f"  ⚠️  yt-dlp subtitles need manual parsing (TODO)")
+            # Get subtitles/automatic_captions
+            subtitles = info.get('subtitles', {}).get('en') or info.get('automatic_captions', {}).get('en')
+
+            if not subtitles:
+                click.echo(f"  No subtitles found")
                 return False
 
-        return False
+            # Find json3 format if available
+            subtitle_data = None
+            for sub in subtitles:
+                if sub.get('ext') == 'json3':
+                    # Download the JSON3 subtitle data
+                    import urllib.request
+                    with urllib.request.urlopen(sub['url']) as response:
+                        import json as json_lib
+                        subtitle_data = json_lib.load(response)
+                    break
+
+            if not subtitle_data:
+                click.echo(f"  No json3 subtitles available")
+                return False
+
+            # Convert json3 format to transcript format
+            transcript = []
+            for event in subtitle_data.get('events', []):
+                if 'segs' in event:
+                    text = ''.join(seg.get('utf8', '') for seg in event['segs'])
+                    if text.strip():
+                        transcript.append({
+                            'text': text.strip(),
+                            'start': event.get('tStartMs', 0) / 1000.0,
+                            'duration': event.get('dDurationMs', 0) / 1000.0
+                        })
+
+            if not transcript:
+                click.echo(f"  Empty transcript")
+                return False
+
+            # Save transcript
+            output_file = output_path / f"{video_id}.json"
+            with open(output_file, "w") as f:
+                json.dump({
+                    "video_id": video_id,
+                    "url": f"https://www.youtube.com/watch?v={video_id}",
+                    "title": info.get('title', ''),
+                    "transcript": transcript,
+                    "source": "yt-dlp"
+                }, f, indent=2)
+
+            click.echo(f"  ✅ Saved transcript to {output_file}")
+            return True
+
     except Exception as e:
         click.echo(f"  yt-dlp error: {e}", err=True)
         return False
