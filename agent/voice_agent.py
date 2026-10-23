@@ -22,6 +22,8 @@ from livekit.plugins import openai, silero
 from datetime import datetime
 import logging
 import os
+from pathlib import Path
+from typing import Optional
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -50,7 +52,115 @@ class AstroLB3Assistant(Agent):
         with open(prompt_path, "r") as f:
             system_prompt = f.read()
 
-        super().__init__(instructions=system_prompt)
+        # Add knowledge base instruction
+        enhanced_prompt = system_prompt + """
+
+## Knowledge Base Tool Usage
+
+When answering questions about Starfield mechanics, quests, locations, or strategies:
+1. ALWAYS use the search_knowledge_base tool FIRST
+2. Base your answer on the retrieved information
+3. If no information is found, respond with: "My records don't show that. I may need an update to my database."
+4. Never speculate or make up game information
+"""
+
+        super().__init__(instructions=enhanced_prompt)
+
+        # Lazy-loaded knowledge base (None until first use)
+        self._kb_table = None
+        self._openai_client = None
+
+    def _lazy_load_kb(self):
+        """Lazily initialize knowledge base connection."""
+        if self._kb_table is not None:
+            return  # Already loaded
+
+        try:
+            import lancedb
+            from openai import OpenAI
+
+            db_path = Path(__file__).parent / "../data/lancedb"
+
+            if not db_path.exists():
+                logger.warning(f"Knowledge base not found at {db_path}")
+                return
+
+            db = lancedb.connect(str(db_path))
+            table_name = "starfield_kb"
+
+            if table_name not in db.table_names():
+                logger.warning(f"Knowledge base table '{table_name}' not found")
+                return
+
+            self._kb_table = db.open_table(table_name)
+            self._openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+            logger.info("Knowledge base loaded successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to load knowledge base: {e}")
+            # Don't raise - agent should continue without KB
+
+    @function_tool
+    async def search_knowledge_base(self, context: RunContext, query: str) -> str:
+        """Search the Starfield knowledge base for relevant information.
+
+        Use this tool to answer questions about Starfield mechanics, quests,
+        locations, systems, factions, skills, ships, outposts, and strategies.
+
+        Args:
+            query: The search query or question about Starfield
+
+        Returns:
+            Relevant information from the knowledge base, or an error message
+        """
+        logger.info(f"Searching knowledge base: {query}")
+
+        # Lazy load KB on first use
+        if self._kb_table is None:
+            self._lazy_load_kb()
+
+        # If KB failed to load, return error message
+        if self._kb_table is None or self._openai_client is None:
+            logger.warning("Knowledge base unavailable")
+            return "My records don't show that. I may need an update to my database."
+
+        try:
+            # Get query embedding
+            response = self._openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=[query]
+            )
+            query_vector = response.data[0].embedding
+
+            # Search (get more results than needed for spoiler filtering)
+            results = self._kb_table.search(query_vector).limit(10).to_list()
+
+            # TODO: Filter by spoiler level (requires M2 progress tracking)
+            # For now, only return non-spoiler content
+            filtered = [r for r in results if r.get("spoiler_level", "none") == "none"][:3]
+
+            if not filtered:
+                logger.info("No results found in knowledge base")
+                return "My records don't show that. I may need an update to my database."
+
+            # Format results
+            context_parts = []
+            for result in filtered:
+                source = result.get("source", "Unknown")
+                heading = result.get("heading", "")
+                text = result.get("text", "")
+
+                context_parts.append(f"[{source} - {heading}]\n{text}")
+
+            combined = "\n\n".join(context_parts)
+            logger.info(f"Found {len(filtered)} relevant chunks")
+
+            return combined
+
+        except Exception as e:
+            logger.error(f"Error searching knowledge base: {e}")
+            return "My records encountered an error during search. Continuing without that data."
 
     @function_tool
     async def get_current_date_and_time(self, context: RunContext) -> str:
