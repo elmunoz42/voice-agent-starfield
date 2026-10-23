@@ -1,57 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Track } from "livekit-client";
 import { TokenSource } from "livekit-client";
 import {
   RoomAudioRenderer,
   SessionProvider,
   StartAudio,
   useSession,
-  DisconnectButton,
-  AudioVisualizer,
-  useLocalParticipant,
+  useSessionContext,
   useVoiceAssistant,
+  BarVisualizer,
+  useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
 export default function Home() {
-  return <VoiceAssistantApp />;
-}
-
-function VoiceAssistantApp() {
-  const [connectionDetails, setConnectionDetails] = useState<{
-    serverUrl: string;
-    roomName: string;
-    participantToken: string;
-  } | null>(null);
-
-  if (!connectionDetails) {
-    return (
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <PassphraseConnect onConnect={setConnectionDetails} />
-      </main>
-    );
-  }
-
-  return <ConnectedSession connectionDetails={connectionDetails} />;
-}
-
-function ConnectedSession({
-  connectionDetails,
-}: {
-  connectionDetails: {
-    serverUrl: string;
-    roomName: string;
-    participantToken: string;
-  };
-}) {
   const tokenSource = useMemo(
-    () =>
-      TokenSource.literal(() => ({
-        serverUrl: connectionDetails.serverUrl,
-        participantToken: connectionDetails.participantToken,
-      })),
-    [connectionDetails]
+    () => TokenSource.endpoint("/api/connection-details"),
+    []
   );
 
   const session = useSession(tokenSource, {
@@ -61,7 +28,7 @@ function ConnectedSession({
   return (
     <SessionProvider session={session}>
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <VoiceAssistantUI />
+        <AppContent />
         <StartAudio label="Start Audio" />
         <RoomAudioRenderer />
       </main>
@@ -69,11 +36,18 @@ function ConnectedSession({
   );
 }
 
-function PassphraseConnect({
-  onConnect,
-}: {
-  onConnect: (details: any) => void;
-}) {
+function AppContent() {
+  const { isConnected } = useSessionContext();
+
+  if (!isConnected) {
+    return <WelcomeView />;
+  }
+
+  return <SessionView />;
+}
+
+function WelcomeView() {
+  const { start } = useSessionContext();
   const [passphrase, setPassphrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -95,8 +69,8 @@ function PassphraseConnect({
         throw new Error(data.error || "Failed to connect");
       }
 
-      const details = await response.json();
-      onConnect(details);
+      // Passphrase verified, start session
+      await start();
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -152,9 +126,10 @@ function PassphraseConnect({
   );
 }
 
-function VoiceAssistantUI() {
-  const { state, audioTrack } = useVoiceAssistant();
+function SessionView() {
+  const { state: agentState, audioTrack: agentAudioTrack } = useVoiceAssistant();
   const { localParticipant } = useLocalParticipant();
+  const { end } = useSessionContext();
   const [isMuted, setIsMuted] = useState(false);
 
   const toggleMute = () => {
@@ -165,28 +140,33 @@ function VoiceAssistantUI() {
   };
 
   return (
-    <div className="bg-slate-800 rounded-lg shadow-2xl p-8">
+    <div className="bg-slate-800 rounded-lg shadow-2xl p-8 w-full max-w-2xl">
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-blue-400 mb-2">AstroLB-3</h1>
         <p className="text-slate-300 text-sm">
-          {state === "connecting" && "Initializing..."}
-          {state === "listening" && "🎤 Listening"}
-          {state === "thinking" && "🤔 Processing"}
-          {state === "speaking" && "🔊 Speaking"}
-          {state === "idle" && "⚡ Ready"}
+          {agentState === "connecting" && "Initializing..."}
+          {agentState === "listening" && "🎤 Listening"}
+          {agentState === "thinking" && "🤔 Processing"}
+          {agentState === "speaking" && "🔊 Speaking"}
+          {agentState === "idle" && "⚡ Ready"}
         </p>
       </div>
 
       {/* Visualizer */}
-      {audioTrack && (
-        <div className="mb-8 bg-slate-900/50 rounded-lg p-4">
-          <AudioVisualizer
-            trackRef={audioTrack}
-            className="h-32"
-          />
+      <div className="mb-8 flex items-center justify-center">
+        <div className="bg-slate-900/50 rounded-lg p-8 w-full">
+          <BarVisualizer
+            barCount={5}
+            state={agentState}
+            options={{ minHeight: 5 }}
+            trackRef={agentAudioTrack}
+            className="flex h-24 items-center justify-center gap-2"
+          >
+            <span className="bg-slate-600 min-h-2.5 w-2.5 rounded-full origin-center transition-colors duration-250 ease-linear data-[lk-highlighted=true]:bg-blue-400 data-[lk-muted=true]:bg-slate-600" />
+          </BarVisualizer>
         </div>
-      )}
+      </div>
 
       {/* Mute/Unmute Button */}
       <div className="flex flex-col items-center gap-6 mb-6">
@@ -224,15 +204,18 @@ function VoiceAssistantUI() {
 
       {/* Disconnect */}
       <div className="flex justify-center">
-        <DisconnectButton className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors">
+        <button
+          onClick={() => end()}
+          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+        >
           Disconnect
-        </DisconnectButton>
+        </button>
       </div>
 
       {/* Version Footer */}
       <div className="mt-6 text-center">
         <p className="text-xs text-slate-500">
-          v1.2.0 - SessionProvider Fix
+          v1.3.0 - Proper SessionProvider
         </p>
       </div>
     </div>
