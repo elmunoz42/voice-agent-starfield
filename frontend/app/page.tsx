@@ -21,7 +21,7 @@ export default function Home() {
   if (!isAuthorized) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <WelcomeView onAuthorized={() => setIsAuthorized(true)} />
+        <PassphraseView onAuthorized={() => setIsAuthorized(true)} />
       </main>
     );
   }
@@ -42,7 +42,7 @@ function AuthorizedApp() {
   return (
     <SessionProvider session={session}>
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <SessionView />
+        <AppContent />
         <StartAudio label="Start Audio" />
         <RoomAudioRenderer />
       </main>
@@ -50,7 +50,17 @@ function AuthorizedApp() {
   );
 }
 
-function WelcomeView({ onAuthorized }: { onAuthorized: () => void }) {
+function AppContent() {
+  const { isConnected } = useSessionContext();
+
+  if (!isConnected) {
+    return <ConnectView />;
+  }
+
+  return <SessionView />;
+}
+
+function PassphraseView({ onAuthorized }: { onAuthorized: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -118,7 +128,7 @@ function WelcomeView({ onAuthorized }: { onAuthorized: () => void }) {
           disabled={loading || !passphrase}
           className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors duration-200"
         >
-          {loading ? "Connecting..." : "Connect to AstroLB-3"}
+          {loading ? "Verifying..." : "Verify Passphrase"}
         </button>
       </form>
 
@@ -129,16 +139,61 @@ function WelcomeView({ onAuthorized }: { onAuthorized: () => void }) {
   );
 }
 
+function ConnectView() {
+  const { start } = useSessionContext();
+  const [loading, setLoading] = useState(false);
+
+  const handleConnect = async () => {
+    setLoading(true);
+    try {
+      await start();
+    } catch (err) {
+      console.error("Failed to start session:", err);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-md w-full">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold text-blue-400 mb-2">AstroLB-3</h1>
+        <p className="text-slate-300">Starfield Suit AI</p>
+        <p className="text-slate-400 text-sm mt-4">
+          Passphrase verified. Ready to connect.
+        </p>
+      </div>
+
+      <button
+        onClick={handleConnect}
+        disabled={loading}
+        className="w-full py-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold text-lg rounded-lg transition-colors duration-200"
+      >
+        {loading ? "Connecting..." : "🎤 Connect to AstroLB-3"}
+      </button>
+
+      <p className="text-xs text-slate-400 mt-6 text-center">
+        Click to establish voice connection
+      </p>
+    </div>
+  );
+}
+
 function SessionView() {
   const { state: agentState, audioTrack: agentAudioTrack } = useVoiceAssistant();
   const { localParticipant } = useLocalParticipant();
-  const { end } = useSessionContext();
+  const { end, isConnected } = useSessionContext();
   const [isMuted, setIsMuted] = useState(false);
 
   const toggleMute = () => {
     if (localParticipant) {
       localParticipant.setMicrophoneEnabled(isMuted);
       setIsMuted(!isMuted);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (end) {
+      await end();
     }
   };
 
@@ -208,7 +263,7 @@ function SessionView() {
       {/* Disconnect */}
       <div className="flex justify-center">
         <button
-          onClick={() => end()}
+          onClick={handleDisconnect}
           className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
         >
           Disconnect
@@ -218,7 +273,7 @@ function SessionView() {
       {/* Version Footer */}
       <div className="mt-6 text-center">
         <p className="text-xs text-slate-500">
-          v1.4.0 - Delayed Session Creation
+          v1.5.0 - Added Connect Button
         </p>
       </div>
     </div>
