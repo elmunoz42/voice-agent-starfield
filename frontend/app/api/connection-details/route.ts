@@ -1,11 +1,10 @@
-import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
+import { AccessToken } from "livekit-server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
 const PASSPHRASE = process.env.ACCESS_PASSPHRASE || "starfield";
-const AGENT_NAME = "astrolb3-starfield";
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,25 +46,31 @@ export async function POST(request: NextRequest) {
 
     const token = await at.toJwt();
 
-    // Create room and dispatch agent
-    const roomService = new RoomServiceClient(LIVEKIT_URL, API_KEY, API_SECRET);
-    const dispatchService = new AgentDispatchClient(LIVEKIT_URL, API_KEY, API_SECRET);
-
+    // Dispatch agent to room using REST API
     try {
-      // Create the room first
-      await roomService.createRoom({
-        name: roomName,
-        emptyTimeout: 300, // Room will close after 5 minutes if empty
-        maxParticipants: 2, // Just the user and the agent
+      const dispatchUrl = `${LIVEKIT_URL}/twirp/livekit.AgentDispatchService/CreateDispatch`;
+      const dispatchAuth = Buffer.from(`${API_KEY}:${API_SECRET}`).toString('base64');
+
+      const dispatchResponse = await fetch(dispatchUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${dispatchAuth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          room: roomName,
+          agent_name: 'astrolb3-starfield',
+        }),
       });
 
-      // Dispatch the agent to the room
-      await dispatchService.createDispatch(roomName, AGENT_NAME, {
-        metadata: JSON.stringify({ userId: participantName }),
-      });
+      if (!dispatchResponse.ok) {
+        console.error('Failed to dispatch agent:', await dispatchResponse.text());
+      } else {
+        console.log('Agent dispatched successfully to room:', roomName);
+      }
     } catch (err) {
-      console.error("Error creating room or dispatching agent:", err);
-      // Continue anyway - room might already exist
+      console.error('Error dispatching agent:', err);
+      // Continue anyway - connection might still work
     }
 
     return NextResponse.json({
