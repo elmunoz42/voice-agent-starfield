@@ -1,45 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { TokenSource } from "livekit-client";
 import {
-  LiveKitRoom,
   RoomAudioRenderer,
-  useVoiceAssistant,
-  BarVisualizer,
+  SessionProvider,
+  StartAudio,
+  useSession,
   DisconnectButton,
   AudioVisualizer,
   useLocalParticipant,
+  useVoiceAssistant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
 export default function Home() {
+  return <VoiceAssistantApp />;
+}
+
+function VoiceAssistantApp() {
   const [connectionDetails, setConnectionDetails] = useState<{
     serverUrl: string;
     roomName: string;
     participantToken: string;
   } | null>(null);
 
+  const tokenSource = useMemo(() => {
+    if (!connectionDetails) return null;
+    return TokenSource.from(
+      connectionDetails.serverUrl,
+      connectionDetails.participantToken
+    );
+  }, [connectionDetails]);
+
+  const session = useSession(tokenSource, {
+    agentName: "astrolb3-starfield",
+  });
+
+  if (!connectionDetails) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <PassphraseConnect onConnect={setConnectionDetails} />
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-      {!connectionDetails ? (
-        <PassphraseEntry onConnect={setConnectionDetails} />
-      ) : (
-        <LiveKitRoom
-          serverUrl={connectionDetails.serverUrl}
-          token={connectionDetails.participantToken}
-          connect={true}
-          audio={true}
-          className="w-full max-w-2xl"
-        >
-          <VoiceAssistantUI />
-          <RoomAudioRenderer />
-        </LiveKitRoom>
-      )}
-    </main>
+    <SessionProvider session={session}>
+      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <VoiceAssistantUI />
+        <StartAudio label="Start Audio" />
+        <RoomAudioRenderer />
+      </main>
+    </SessionProvider>
   );
 }
 
-function PassphraseEntry({
+function PassphraseConnect({
   onConnect,
 }: {
   onConnect: (details: any) => void;
@@ -202,7 +219,7 @@ function VoiceAssistantUI() {
       {/* Version Footer */}
       <div className="mt-6 text-center">
         <p className="text-xs text-slate-500">
-          v1.1.0 - Mute/Unmute Mode
+          v1.2.0 - SessionProvider Fix
         </p>
       </div>
     </div>
