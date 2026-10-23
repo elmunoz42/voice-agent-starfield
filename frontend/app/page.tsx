@@ -27,10 +27,10 @@ function VoiceAssistantApp() {
 
   const tokenSource = useMemo(() => {
     if (!connectionDetails) return null;
-    return TokenSource.from(
-      connectionDetails.serverUrl,
-      connectionDetails.participantToken
-    );
+    return TokenSource.literal(() => ({
+      serverUrl: connectionDetails.serverUrl,
+      participantToken: connectionDetails.participantToken,
+    }));
   }, [connectionDetails]);
 
   const session = useSession(tokenSource, {
