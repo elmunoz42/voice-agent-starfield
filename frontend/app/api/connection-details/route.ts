@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, AgentDispatchClient } from "livekit-server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 const API_KEY = process.env.LIVEKIT_API_KEY;
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Create room and dispatch agent
     const roomService = new RoomServiceClient(LIVEKIT_URL, API_KEY, API_SECRET);
+    const dispatchService = new AgentDispatchClient(LIVEKIT_URL, API_KEY, API_SECRET);
 
     try {
       // Create the room first
@@ -59,8 +60,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Dispatch the agent to the room
-      await roomService.createDispatch(roomName, {
-        agentName: AGENT_NAME,
+      await dispatchService.createDispatch(roomName, AGENT_NAME, {
         metadata: JSON.stringify({ userId: participantName }),
       });
     } catch (err) {
