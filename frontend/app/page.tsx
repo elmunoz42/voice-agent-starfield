@@ -16,6 +16,20 @@ import {
 import "@livekit/components-styles";
 
 export default function Home() {
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  if (!isAuthorized) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <WelcomeView onAuthorized={() => setIsAuthorized(true)} />
+      </main>
+    );
+  }
+
+  return <AuthorizedApp />;
+}
+
+function AuthorizedApp() {
   const tokenSource = useMemo(
     () => TokenSource.endpoint("/api/connection-details"),
     []
@@ -28,7 +42,7 @@ export default function Home() {
   return (
     <SessionProvider session={session}>
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <AppContent />
+        <SessionView />
         <StartAudio label="Start Audio" />
         <RoomAudioRenderer />
       </main>
@@ -36,18 +50,7 @@ export default function Home() {
   );
 }
 
-function AppContent() {
-  const { isConnected } = useSessionContext();
-
-  if (!isConnected) {
-    return <WelcomeView />;
-  }
-
-  return <SessionView />;
-}
-
-function WelcomeView() {
-  const { start } = useSessionContext();
+function WelcomeView({ onAuthorized }: { onAuthorized: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,8 +72,8 @@ function WelcomeView() {
         throw new Error(data.error || "Failed to connect");
       }
 
-      // Passphrase verified, start session
-      await start();
+      // Passphrase verified, authorize
+      onAuthorized();
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -215,7 +218,7 @@ function SessionView() {
       {/* Version Footer */}
       <div className="mt-6 text-center">
         <p className="text-xs text-slate-500">
-          v1.3.0 - Proper SessionProvider
+          v1.4.0 - Delayed Session Creation
         </p>
       </div>
     </div>
