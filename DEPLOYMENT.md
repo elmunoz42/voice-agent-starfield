@@ -12,7 +12,16 @@ This guide covers deploying AstroLB-3 to LiveKit Cloud (agent) and Vercel (front
 
 ### 1. Install LiveKit CLI
 
-**Windows:**
+**Linux / WSL2:**
+```bash
+# Install jq prerequisite (required by LiveKit CLI installer)
+sudo apt install -y jq
+
+# Install LiveKit CLI
+curl -sSL https://get.livekit.io/cli | bash
+```
+
+**Windows (Native, not WSL):**
 ```bash
 winget install LiveKit.LiveKitCLI
 ```
@@ -22,10 +31,7 @@ winget install LiveKit.LiveKitCLI
 brew install livekit
 ```
 
-**Linux:**
-```bash
-curl -sSL https://get.livekit.io/cli | bash
-```
+**Note:** If you're using WSL2, use the Linux installation method above, not winget.
 
 ### 2. Authenticate with LiveKit Cloud
 
@@ -39,29 +45,39 @@ This will open your browser to authenticate. Follow the prompts.
 
 Navigate to the agent directory:
 ```bash
-cd agent
+cd /home/elmunoz42/cmkdev/voice-agent-starfield/agent
 ```
 
-Create a deployable agent:
+Deploy the agent to LiveKit Cloud:
 ```bash
 lk agent create
 ```
 
-Follow the prompts:
-- Agent name: `astrolb3-agent` (or your preferred name)
-- Entry point: `voice_agent.py`
+The CLI will:
+1. Build a Docker image from your agent code
+2. Upload it to LiveKit Cloud
+3. Deploy the agent
+4. Provide your LiveKit Cloud credentials
 
-The CLI will deploy your agent and provide:
-- **Agent URL** (wss://...)
-- **API Key**
-- **API Secret**
+**Save the credentials** provided by the CLI:
+- **LIVEKIT_URL** (wss://...)
+- **LIVEKIT_API_KEY**
+- **LIVEKIT_API_SECRET**
 
-**Save these credentials** - you'll need them for the frontend.
+You'll need these for the frontend configuration.
 
-### 4. Set Agent Environment Variables
+### 4. Set Agent Secrets
 
-In the LiveKit Cloud dashboard, add these environment variables for your agent:
+After deployment, configure the OpenAI API key as a secret:
+
+```bash
+lk agent update-secrets astrolb3-starfield
+```
+
+When prompted, add:
 - `OPENAI_API_KEY`: Your OpenAI API key
+
+This securely stores the API key in LiveKit Cloud without exposing it in code or config files.
 
 ## Part 2: Deploy Frontend to Vercel
 
