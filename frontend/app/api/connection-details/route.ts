@@ -6,6 +6,83 @@ const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
 const PASSPHRASE = process.env.ACCESS_PASSPHRASE || "starfield";
 
+async function generateConnectionDetails() {
+  // Validate environment variables
+  if (!API_KEY || !API_SECRET || !LIVEKIT_URL) {
+    return NextResponse.json(
+      { error: "Server configuration error" },
+      { status: 500 }
+    );
+  }
+
+  // Generate room name and participant identity
+  const roomName = `astrolb3-${Date.now()}`;
+  const participantName = "Carlos";
+
+  // Create access token
+  const at = new AccessToken(API_KEY, API_SECRET, {
+    identity: participantName,
+    ttl: "5h", // Token valid for 5 hours
+  });
+
+  at.addGrant({
+    room: roomName,
+    roomJoin: true,
+    canPublish: true,
+    canSubscribe: true,
+  });
+
+  const token = await at.toJwt();
+
+  // Dispatch agent to room using REST API
+  try {
+    const dispatchUrl = `${LIVEKIT_URL}/twirp/livekit.AgentDispatchService/CreateDispatch`;
+    const dispatchAuth = Buffer.from(`${API_KEY}:${API_SECRET}`).toString('base64');
+
+    const dispatchResponse = await fetch(dispatchUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${dispatchAuth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        room: roomName,
+        agent_name: 'astrolb3-starfield',
+      }),
+    });
+
+    if (!dispatchResponse.ok) {
+      console.error('Failed to dispatch agent:', await dispatchResponse.text());
+    } else {
+      console.log('Agent dispatched successfully to room:', roomName);
+    }
+  } catch (err) {
+    console.error('Error dispatching agent:', err);
+    // Continue anyway - connection might still work
+  }
+
+  return NextResponse.json({
+    serverUrl: LIVEKIT_URL,
+    roomName,
+    participantToken: token,
+    participantName,
+  });
+}
+
+// GET handler - called by LiveKit TokenSource.endpoint()
+export async function GET(request: NextRequest) {
+  try {
+    return await generateConnectionDetails();
+  } catch (error) {
+    console.error("Error generating token:", error);
+    return NextResponse.json(
+      { error: "Failed to generate connection details" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST handler - called by WelcomeView form with passphrase validation
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -19,66 +96,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate environment variables
-    if (!API_KEY || !API_SECRET || !LIVEKIT_URL) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    // Generate room name and participant identity
-    const roomName = `astrolb3-${Date.now()}`;
-    const participantName = "Carlos";
-
-    // Create access token
-    const at = new AccessToken(API_KEY, API_SECRET, {
-      identity: participantName,
-      ttl: "5h", // Token valid for 5 hours
-    });
-
-    at.addGrant({
-      room: roomName,
-      roomJoin: true,
-      canPublish: true,
-      canSubscribe: true,
-    });
-
-    const token = await at.toJwt();
-
-    // Dispatch agent to room using REST API
-    try {
-      const dispatchUrl = `${LIVEKIT_URL}/twirp/livekit.AgentDispatchService/CreateDispatch`;
-      const dispatchAuth = Buffer.from(`${API_KEY}:${API_SECRET}`).toString('base64');
-
-      const dispatchResponse = await fetch(dispatchUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${dispatchAuth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          room: roomName,
-          agent_name: 'astrolb3-starfield',
-        }),
-      });
-
-      if (!dispatchResponse.ok) {
-        console.error('Failed to dispatch agent:', await dispatchResponse.text());
-      } else {
-        console.log('Agent dispatched successfully to room:', roomName);
-      }
-    } catch (err) {
-      console.error('Error dispatching agent:', err);
-      // Continue anyway - connection might still work
-    }
-
-    return NextResponse.json({
-      serverUrl: LIVEKIT_URL,
-      roomName,
-      participantToken: token,
-      participantName,
-    });
+    return await generateConnectionDetails();
   } catch (error) {
     console.error("Error generating token:", error);
     return NextResponse.json(
