@@ -198,6 +198,13 @@ function VoiceAssistantUI() {
           Disconnect
         </DisconnectButton>
       </div>
+
+      {/* Version Footer */}
+      <div className="mt-6 text-center">
+        <p className="text-xs text-slate-500">
+          v1.1.0 - Mute/Unmute Mode
+        </p>
+      </div>
     </div>
   );
 }
