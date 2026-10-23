@@ -80,3 +80,6 @@ Thumbs.db
 *.swp
 temp/
 tmp/
+
+# Knowledge base bundled into the agent image at deploy time
+agent/data/

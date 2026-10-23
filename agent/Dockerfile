@@ -17,6 +17,10 @@ ENV PYTHONUNBUFFERED=1
 # expense of a slightly longer build.
 ENV UV_COMPILE_BYTECODE=1
 
+# Keep downloaded model files (turn detector, VAD) under /app so they are
+# carried into the production stage, which only copies /app
+ENV HF_HOME=/app/.cache/huggingface
+
 # --- Build stage ---
 # Install dependencies, build native extensions, and prepare the application
 FROM base AS build
@@ -60,6 +64,11 @@ COPY . .
 # Prompts directory is now copied into agent/ before build
 # No additional COPY needed, it's included in COPY . .
 
+# Knowledge base is copied into agent/data/lancedb before build (see
+# DEPLOYMENT.md). The journal is also written here, so it must live under
+# /app, which is owned by appuser (ASTRO_DATA_DIR is set in the final stage).
+RUN mkdir -p /app/data
+
 # --- Production stage ---
 # Build tools (gcc, g++, python3-dev) are not included in the final image
 FROM base
@@ -76,6 +85,9 @@ RUN adduser \
     appuser
 
 WORKDIR /app
+
+# Journal and knowledge base location (see journal.py)
+ENV ASTRO_DATA_DIR=/app/data
 
 # Copy the application and virtual environment with correct ownership in a single layer
 # This avoids expensive recursive chown and excludes build tools from the final image

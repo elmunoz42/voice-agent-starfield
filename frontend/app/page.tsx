@@ -16,23 +16,27 @@ import {
 import "@livekit/components-styles";
 
 export default function Home() {
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [passphrase, setPassphrase] = useState<string | null>(null);
 
-  if (!isAuthorized) {
+  if (passphrase === null) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-        <PassphraseView onAuthorized={() => setIsAuthorized(true)} />
+        <PassphraseView onAuthorized={setPassphrase} />
       </main>
     );
   }
 
-  return <AuthorizedApp />;
+  return <AuthorizedApp passphrase={passphrase} />;
 }
 
-function AuthorizedApp() {
+function AuthorizedApp({ passphrase }: { passphrase: string }) {
+  // The token endpoint requires the passphrase on every request
   const tokenSource = useMemo(
-    () => TokenSource.endpoint("/api/connection-details"),
-    []
+    () =>
+      TokenSource.endpoint("/api/connection-details", {
+        headers: { "x-access-passphrase": passphrase },
+      }),
+    [passphrase]
   );
 
   const session = useSession(tokenSource, {
@@ -60,7 +64,11 @@ function AppContent() {
   return <SessionView />;
 }
 
-function PassphraseView({ onAuthorized }: { onAuthorized: () => void }) {
+function PassphraseView({
+  onAuthorized,
+}: {
+  onAuthorized: (passphrase: string) => void;
+}) {
   const [passphrase, setPassphrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -83,7 +91,7 @@ function PassphraseView({ onAuthorized }: { onAuthorized: () => void }) {
       }
 
       // Passphrase verified, authorize
-      onAuthorized();
+      onAuthorized(passphrase);
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -142,13 +150,17 @@ function PassphraseView({ onAuthorized }: { onAuthorized: () => void }) {
 function ConnectView() {
   const { start } = useSessionContext();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleConnect = async () => {
     setLoading(true);
+    setError("");
     try {
+      // Connects, enables the mic, and waits for the dispatched agent to join
       await start();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start session:", err);
+      setError(err?.message || "Failed to connect");
       setLoading(false);
     }
   };
@@ -171,6 +183,12 @@ function ConnectView() {
         {loading ? "Connecting..." : "🎤 Connect to AstroLB-3"}
       </button>
 
+      {error && (
+        <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mt-4 text-sm break-words">
+          {error}
+        </div>
+      )}
+
       <p className="text-xs text-slate-400 mt-6 text-center">
         Click to establish voice connection
       </p>
@@ -180,21 +198,16 @@ function ConnectView() {
 
 function SessionView() {
   const { state: agentState, audioTrack: agentAudioTrack } = useVoiceAssistant();
-  const { localParticipant } = useLocalParticipant();
-  const { end, isConnected } = useSessionContext();
-  const [isMuted, setIsMuted] = useState(false);
+  const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
+  const { end } = useSessionContext();
+  const isMuted = !isMicrophoneEnabled;
 
   const toggleMute = () => {
-    if (localParticipant) {
-      localParticipant.setMicrophoneEnabled(isMuted);
-      setIsMuted(!isMuted);
-    }
+    localParticipant.setMicrophoneEnabled(isMuted);
   };
 
   const handleDisconnect = async () => {
-    if (end) {
-      await end();
-    }
+    await end();
   };
 
   return (
@@ -273,7 +286,7 @@ function SessionView() {
       {/* Version Footer */}
       <div className="mt-6 text-center">
         <p className="text-xs text-slate-500">
-          v1.5.0 - Added Connect Button
+          v1.6.0 - Token-based agent dispatch
         </p>
       </div>
     </div>

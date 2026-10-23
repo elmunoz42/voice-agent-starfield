@@ -9,14 +9,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 # Spoiler level hierarchy
 SPOILER_LEVELS = ["none", "main-quest", "faction", "endgame"]
 
+
+def _resolve_data_dir() -> Path:
+    """Locate the data directory (journal + knowledge base).
+
+    $ASTRO_DATA_DIR if set (the cloud image sets /app/data, since ../data is
+    outside the build context and not writable), else ../data for local dev.
+    """
+    if os.getenv("ASTRO_DATA_DIR"):
+        return Path(os.environ["ASTRO_DATA_DIR"])
+    return Path(__file__).parent / "../data"
+
+
+DATA_DIR = _resolve_data_dir()
+
 # Default database path
-DEFAULT_DB_PATH = Path(__file__).parent / "../data/journal.db"
+DEFAULT_DB_PATH = DATA_DIR / "journal.db"
 
 
 class JournalDB:

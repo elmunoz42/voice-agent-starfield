@@ -48,10 +48,20 @@ Navigate to the agent directory:
 cd /home/elmunoz42/cmkdev/voice-agent-starfield/agent
 ```
 
-Deploy the agent to LiveKit Cloud:
+Bundle the knowledge base into the agent build context (`../data` is outside
+it). Re-run this whenever you rebuild the knowledge base:
+```bash
+rm -rf data/lancedb && mkdir -p data && cp -r ../data/lancedb data/
+```
+
+Deploy the agent to LiveKit Cloud (`lk agent deploy` for later updates):
 ```bash
 lk agent create
 ```
+
+**Note:** In the cloud the progress journal lives at `/app/data/journal.db`
+inside the container, so it starts empty and resets on each redeploy. Your local
+`data/journal.db` is not uploaded.
 
 The CLI will:
 1. Build a Docker image from your agent code

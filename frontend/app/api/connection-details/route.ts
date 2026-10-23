@@ -1,4 +1,8 @@
-import { AccessToken } from "livekit-server-sdk";
+import {
+  AccessToken,
+  RoomAgentDispatch,
+  RoomConfiguration,
+} from "livekit-server-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 const API_KEY = process.env.LIVEKIT_API_KEY;
@@ -6,8 +10,13 @@ const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
 const PASSPHRASE = process.env.ACCESS_PASSPHRASE || "starfield";
 
+// Must match AGENT_NAME in agent/voice_agent.py. Agents registered with an
+// explicit name are only dispatched when requested, which we do via the token.
+const AGENT_NAME = "astrolb3-starfield";
+
+const PASSPHRASE_HEADER = "x-access-passphrase";
+
 async function generateConnectionDetails() {
-  // Validate environment variables
   if (!API_KEY || !API_SECRET || !LIVEKIT_URL) {
     return NextResponse.json(
       { error: "Server configuration error" },
@@ -15,94 +24,65 @@ async function generateConnectionDetails() {
     );
   }
 
-  // Generate room name and participant identity
+  // New room per session: agents won't rejoin a room that already existed
   const roomName = `astrolb3-${Date.now()}`;
   const participantName = "Carlos";
+  const participantIdentity = `carlos-${crypto.randomUUID().slice(0, 8)}`;
 
-  // Create access token
   const at = new AccessToken(API_KEY, API_SECRET, {
-    identity: participantName,
-    ttl: "5h", // Token valid for 5 hours
+    identity: participantIdentity,
+    name: participantName,
+    ttl: "5h",
   });
 
   at.addGrant({
     room: roomName,
     roomJoin: true,
     canPublish: true,
+    canPublishData: true,
     canSubscribe: true,
   });
 
-  const token = await at.toJwt();
+  // Dispatch the agent when the room is created on join
+  at.roomConfig = new RoomConfiguration({
+    agents: [new RoomAgentDispatch({ agentName: AGENT_NAME })],
+  });
 
-  // Manually dispatch agent to room
-  try {
-    const dispatchUrl = `${LIVEKIT_URL}/twirp/livekit.AgentDispatchService/CreateDispatch`;
-    const dispatchAuth = Buffer.from(`${API_KEY}:${API_SECRET}`).toString('base64');
-
-    console.log('Dispatching agent astrolb3-starfield to room:', roomName);
-
-    const dispatchResponse = await fetch(dispatchUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${dispatchAuth}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        room: roomName,
-        agent_name: 'astrolb3-starfield',
-      }),
-    });
-
-    if (!dispatchResponse.ok) {
-      const errorText = await dispatchResponse.text();
-      console.error('Failed to dispatch agent:', errorText);
-    } else {
-      console.log('Agent dispatched successfully');
-    }
-  } catch (err) {
-    console.error('Error dispatching agent:', err);
-  }
+  const participantToken = await at.toJwt();
 
   return NextResponse.json({
     serverUrl: LIVEKIT_URL,
     roomName,
-    participantToken: token,
+    participantToken,
     participantName,
   });
 }
 
-// GET/POST handler - called by LiveKit and passphrase form
-export async function GET(request: NextRequest) {
-  try {
-    return await generateConnectionDetails();
-  } catch (error) {
-    console.error("Error generating token:", error);
-    return NextResponse.json(
-      { error: "Failed to generate connection details" },
-      { status: 500 }
-    );
-  }
-}
-
+// POST handler - called by the passphrase form ({ passphrase }) and by
+// TokenSource.endpoint() (passphrase sent in the x-access-passphrase header)
 export async function POST(request: NextRequest) {
   try {
-    // Check if this is a passphrase validation request or token request
-    const body = await request.json();
-    const { passphrase } = body;
+    const body = await request.json().catch(() => ({}));
 
-    // If passphrase is provided, validate it
-    if (passphrase !== undefined) {
-      if (passphrase !== PASSPHRASE) {
+    // Passphrase verification from the login form
+    if (typeof body?.passphrase === "string") {
+      if (body.passphrase !== PASSPHRASE) {
         return NextResponse.json(
           { error: "Invalid passphrase" },
           { status: 403 }
         );
       }
-      // Passphrase valid, return success (no token needed yet)
       return NextResponse.json({ success: true });
     }
 
-    // Otherwise generate token
+    // Token request - always requires the passphrase
+    if (request.headers.get(PASSPHRASE_HEADER) !== PASSPHRASE) {
+      return NextResponse.json(
+        { error: "Invalid passphrase" },
+        { status: 403 }
+      );
+    }
+
     return await generateConnectionDetails();
   } catch (error) {
     console.error("Error generating token:", error);

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 # Import journal module
-from journal import get_journal
+from journal import DATA_DIR, get_journal
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -85,7 +85,7 @@ When answering questions about Starfield mechanics, quests, locations, or strate
             import lancedb
             from openai import OpenAI
 
-            db_path = Path(__file__).parent / "../data/lancedb"
+            db_path = DATA_DIR / "lancedb"
 
             if not db_path.exists():
                 logger.warning(f"Knowledge base not found at {db_path}")
