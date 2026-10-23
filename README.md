@@ -10,7 +10,7 @@ Talk to AstroLB-3 hands-free while you play. Ask about Starfield mechanics, get 
 |-----------|--------|-------------|
 | M0 | ✅ Built | Voice loop (console mode, OpenAI STT/LLM/TTS) |
 | M1 | ✅ Built | Knowledge base (YouTube ingestion, distillation, RAG with LanceDB) |
-| M2 | ⏳ Planned | Progress journal and spoiler control (SQLite) |
+| M2 | ✅ Built | Progress journal and spoiler control (SQLite) |
 | M3 | ⏳ Planned | Phone deployment (LiveKit Cloud + Vercel frontend) |
 | M4 | ⏳ Planned | Playtest scenarios |
 
@@ -20,7 +20,9 @@ Talk to AstroLB-3 hands-free while you play. Ask about Starfield mechanics, get 
 voice-agent-starfield/
 ├── agent/                      # Python voice agent (uv project)
 │   ├── voice_agent.py          # Main agent implementation
+│   ├── journal.py              # Progress journal module
 │   ├── kb.py                   # Knowledge base CLI
+│   ├── tests/                  # Unit tests
 │   ├── pyproject.toml          # Dependencies (pinned with uv.lock)
 │   ├── .env.example            # Environment template
 │   └── .env                    # Secrets (not in git)
@@ -34,6 +36,7 @@ voice-agent-starfield/
 ├── frontend/                   # Next.js app (agent-starter-react)
 ├── docs/
 │   ├── setup.md                # Setup instructions
+│   ├── kb-guide.md             # Knowledge base pipeline guide
 │   └── playtest.md             # Playtest scenarios and results
 └── README.md
 ```
@@ -59,9 +62,18 @@ voice-agent-starfield/
 - ✅ Idempotent ingestion with content hashing
 - ✅ Embedded LanceDB (portable, no external database needed)
 
+**M2 - Progress Journal**
+- ✅ `log_progress` tool - Record accomplishments and discoveries
+- ✅ `recall_progress` tool - Retrieve journal entries by topic
+- ✅ `set_current_goal` tool - Track active objectives
+- ✅ `set_spoiler_level` tool - Control plot information visibility
+- ✅ SQLite-based journal (data/journal.db)
+- ✅ Session greetings with progress context ("Last time you were...")
+- ✅ Spoiler filtering integrated with knowledge base search
+- ✅ Four spoiler levels: none, main-quest, faction, endgame
+- ✅ Unit tests for journal functions
+
 ### Planned
-- ⏳ Progress journal with SQLite (goals, notes, timestamps)
-- ⏳ Full spoiler-level filtering integrated with progress tracking
 - ⏳ Phone-optimized frontend with push-to-talk
 - ⏳ LiveKit Cloud deployment
 
@@ -150,7 +162,7 @@ See the status table above for current progress. Only verified items are checked
 
 Next steps:
 1. ✅ ~~Build knowledge base ingestion CLI (M1)~~
-2. Implement progress journal tools (M2)
+2. ✅ ~~Implement progress journal tools (M2)~~
 3. Deploy to phone (M3)
 4. Run playtest scenarios (M4)
 

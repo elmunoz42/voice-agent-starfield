@@ -25,6 +25,9 @@ import os
 from pathlib import Path
 from typing import Optional
 
+# Import journal module
+from journal import get_journal
+
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -69,6 +72,9 @@ When answering questions about Starfield mechanics, quests, locations, or strate
         # Lazy-loaded knowledge base (None until first use)
         self._kb_table = None
         self._openai_client = None
+
+        # Progress journal
+        self._journal = get_journal()
 
     def _lazy_load_kb(self):
         """Lazily initialize knowledge base connection."""
@@ -136,9 +142,12 @@ When answering questions about Starfield mechanics, quests, locations, or strate
             # Search (get more results than needed for spoiler filtering)
             results = self._kb_table.search(query_vector).limit(10).to_list()
 
-            # TODO: Filter by spoiler level (requires M2 progress tracking)
-            # For now, only return non-spoiler content
-            filtered = [r for r in results if r.get("spoiler_level", "none") == "none"][:3]
+            # Filter by spoiler level from journal
+            allowed_levels = self._journal.get_allowed_spoiler_levels()
+            filtered = [
+                r for r in results
+                if r.get("spoiler_level", "none") in allowed_levels
+            ][:3]
 
             if not filtered:
                 logger.info("No results found in knowledge base")
@@ -172,12 +181,132 @@ When answering questions about Starfield mechanics, quests, locations, or strate
         current_datetime = datetime.now().strftime("%B %d, %Y at %I:%M %p")
         return f"The current date and time is {current_datetime}"
 
+    @function_tool
+    async def log_progress(self, context: RunContext, note: str) -> str:
+        """Log a progress entry to the journal.
+
+        Use this when Carlos tells you about something he accomplished,
+        discovered, or completed in Starfield.
+
+        Args:
+            note: Description of the progress (e.g., "Completed the first Constellation mission")
+
+        Returns:
+            Confirmation message
+        """
+        try:
+            self._journal.log_progress(note)
+            logger.info(f"Logged progress: {note}")
+            return f"Progress logged: {note}"
+        except Exception as e:
+            logger.error(f"Error logging progress: {e}")
+            return f"Failed to log progress: {str(e)}"
+
+    @function_tool
+    async def recall_progress(self, context: RunContext, topic: Optional[str] = None) -> str:
+        """Recall recent progress entries from the journal.
+
+        Use this when Carlos asks what he did last time, or wants to
+        remember progress on a specific topic.
+
+        Args:
+            topic: Optional topic to filter by (e.g., "Neon", "outposts", "ship building")
+
+        Returns:
+            Recent progress entries, or message if none found
+        """
+        try:
+            entries = self._journal.recall_progress(topic=topic, limit=10)
+
+            if not entries:
+                return "No progress entries found in your journal."
+
+            # Format entries for voice output
+            lines = []
+            for entry in entries[:5]:  # Limit to 5 for voice
+                timestamp = entry["timestamp"].split("T")[0]  # Just the date
+                note = entry["note"]
+                lines.append(f"{timestamp}: {note}")
+
+            result = "Journal entries:\n" + "\n".join(lines)
+            logger.info(f"Recalled {len(entries)} progress entries")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error recalling progress: {e}")
+            return f"Failed to recall progress: {str(e)}"
+
+    @function_tool
+    async def set_current_goal(self, context: RunContext, goal: str) -> str:
+        """Set the current goal.
+
+        Use this when Carlos tells you what he's planning to do next or
+        wants to set a new objective.
+
+        Args:
+            goal: The new goal (e.g., "Find a Class C ship" or "Complete Ryujin questline")
+
+        Returns:
+            Confirmation message
+        """
+        try:
+            self._journal.set_current_goal(goal)
+            logger.info(f"Set current goal: {goal}")
+            return f"Current goal set: {goal}"
+        except Exception as e:
+            logger.error(f"Error setting goal: {e}")
+            return f"Failed to set goal: {str(e)}"
+
+    @function_tool
+    async def set_spoiler_level(self, context: RunContext, level: str) -> str:
+        """Set the spoiler level for knowledge base filtering.
+
+        Use this when Carlos wants to change how much plot information
+        he's willing to see.
+
+        Args:
+            level: Spoiler level - must be one of: none, main-quest, faction, endgame
+
+        Returns:
+            Confirmation message
+        """
+        try:
+            self._journal.set_spoiler_level(level)
+            logger.info(f"Set spoiler level: {level}")
+            return f"Spoiler level set to: {level}. I'll filter knowledge base results accordingly."
+        except ValueError as e:
+            logger.warning(f"Invalid spoiler level: {level}")
+            return f"Invalid spoiler level. Must be: none, main-quest, faction, or endgame."
+        except Exception as e:
+            logger.error(f"Error setting spoiler level: {e}")
+            return f"Failed to set spoiler level: {str(e)}"
+
     async def on_enter(self):
         """Called when agent session starts."""
         logger.info("AstroLB-3 session started")
-        await self.session.generate_reply(
-            instructions="Greet Carlos briefly as his suit AI coming online. Keep it to one short sentence."
-        )
+
+        # Get session context from journal
+        context = self._journal.get_session_context()
+        current_goal = context.get("current_goal")
+        recent_progress = context.get("recent_progress", [])
+
+        # Build greeting instructions with context
+        if current_goal or recent_progress:
+            context_info = []
+            if current_goal:
+                context_info.append(f"Current goal: {current_goal}")
+            if recent_progress:
+                # Include just the most recent entry
+                latest = recent_progress[0]
+                context_info.append(f"Last progress: {latest['note']}")
+
+            instructions = f"""Greet Carlos briefly as his suit AI coming online.
+Include context from the journal: {' | '.join(context_info)}
+Keep the greeting to 1-2 sentences. Sound like you remember where he left off."""
+        else:
+            instructions = "Greet Carlos briefly as his suit AI coming online. Since there's no journal history, ask what he's working on. Keep it to one short sentence."
+
+        await self.session.generate_reply(instructions=instructions)
 
     async def on_exit(self):
         """Called when agent session ends."""
