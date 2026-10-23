@@ -46,7 +46,7 @@ async function generateConnectionDetails() {
   });
 }
 
-// GET handler - called by LiveKit TokenSource.endpoint()
+// GET/POST handler - called by LiveKit and passphrase form
 export async function GET(request: NextRequest) {
   try {
     return await generateConnectionDetails();
@@ -59,20 +59,25 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST handler - called by WelcomeView form with passphrase validation
 export async function POST(request: NextRequest) {
   try {
+    // Check if this is a passphrase validation request or token request
     const body = await request.json();
     const { passphrase } = body;
 
-    // Verify passphrase
-    if (passphrase !== PASSPHRASE) {
-      return NextResponse.json(
-        { error: "Invalid passphrase" },
-        { status: 403 }
-      );
+    // If passphrase is provided, validate it
+    if (passphrase !== undefined) {
+      if (passphrase !== PASSPHRASE) {
+        return NextResponse.json(
+          { error: "Invalid passphrase" },
+          { status: 403 }
+        );
+      }
+      // Passphrase valid, return success (no token needed yet)
+      return NextResponse.json({ success: true });
     }
 
+    // Otherwise generate token
     return await generateConnectionDetails();
   } catch (error) {
     console.error("Error generating token:", error);
