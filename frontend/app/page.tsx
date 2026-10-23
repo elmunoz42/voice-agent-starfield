@@ -25,18 +25,6 @@ function VoiceAssistantApp() {
     participantToken: string;
   } | null>(null);
 
-  const tokenSource = useMemo(() => {
-    if (!connectionDetails) return null;
-    return TokenSource.literal(() => ({
-      serverUrl: connectionDetails.serverUrl,
-      participantToken: connectionDetails.participantToken,
-    }));
-  }, [connectionDetails]);
-
-  const session = useSession(tokenSource, {
-    agentName: "astrolb3-starfield",
-  });
-
   if (!connectionDetails) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
@@ -44,6 +32,31 @@ function VoiceAssistantApp() {
       </main>
     );
   }
+
+  return <ConnectedSession connectionDetails={connectionDetails} />;
+}
+
+function ConnectedSession({
+  connectionDetails,
+}: {
+  connectionDetails: {
+    serverUrl: string;
+    roomName: string;
+    participantToken: string;
+  };
+}) {
+  const tokenSource = useMemo(
+    () =>
+      TokenSource.literal(() => ({
+        serverUrl: connectionDetails.serverUrl,
+        participantToken: connectionDetails.participantToken,
+      })),
+    [connectionDetails]
+  );
+
+  const session = useSession(tokenSource, {
+    agentName: "astrolb3-starfield",
+  });
 
   return (
     <SessionProvider session={session}>
