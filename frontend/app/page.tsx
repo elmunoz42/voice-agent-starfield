@@ -7,6 +7,8 @@ import {
   useVoiceAssistant,
   BarVisualizer,
   DisconnectButton,
+  AudioVisualizer,
+  useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 
@@ -122,7 +124,15 @@ function PassphraseEntry({
 
 function VoiceAssistantUI() {
   const { state, audioTrack } = useVoiceAssistant();
-  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const { localParticipant } = useLocalParticipant();
+  const [isMuted, setIsMuted] = useState(false);
+
+  const toggleMute = () => {
+    if (localParticipant) {
+      localParticipant.setMicrophoneEnabled(isMuted);
+      setIsMuted(!isMuted);
+    }
+  };
 
   return (
     <div className="bg-slate-800 rounded-lg shadow-2xl p-8">
@@ -140,40 +150,31 @@ function VoiceAssistantUI() {
 
       {/* Visualizer */}
       {audioTrack && (
-        <div className="mb-8">
-          <BarVisualizer
-            state={state}
-            barCount={7}
+        <div className="mb-8 bg-slate-900/50 rounded-lg p-4">
+          <AudioVisualizer
             trackRef={audioTrack}
-            className="h-24"
+            className="h-32"
           />
         </div>
       )}
 
-      {/* Push-to-Talk Button */}
+      {/* Mute/Unmute Button */}
       <div className="flex flex-col items-center gap-6 mb-6">
         <button
-          onPointerDown={() => setIsPushToTalkActive(true)}
-          onPointerUp={() => setIsPushToTalkActive(false)}
-          onPointerLeave={() => setIsPushToTalkActive(false)}
+          onClick={toggleMute}
           className={`w-64 h-64 rounded-full font-bold text-2xl transition-all duration-200 shadow-2xl select-none ${
-            isPushToTalkActive
-              ? "bg-blue-500 text-white scale-95 shadow-blue-500/50"
+            isMuted
+              ? "bg-red-600 hover:bg-red-500 text-white shadow-red-600/30"
               : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30"
           }`}
-          style={{
-            touchAction: "none",
-            WebkitTouchCallout: "none",
-            WebkitUserSelect: "none",
-          }}
         >
-          {isPushToTalkActive ? "🎤 ACTIVE" : "HOLD TO TALK"}
+          {isMuted ? "🔇 MUTED" : "🎤 LISTENING"}
         </button>
 
         <p className="text-slate-400 text-sm text-center max-w-sm">
-          {isPushToTalkActive
-            ? "Speak now - Release when done"
-            : "Hold the button and speak, then release"}
+          {isMuted
+            ? "Click to unmute and talk to AstroLB-3"
+            : "Microphone active - Speak naturally"}
         </p>
       </div>
 
